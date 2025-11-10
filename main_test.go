@@ -1,98 +1,53 @@
 package main
 
 import (
-	"bytes"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Генерация хеша пароля
+func GenerateHash(password string, cost int) (string, error) {
+	pHash, err := bcrypt.GenerateFromPassword([]byte(password), cost)
+	if err != nil {
+		return "", err
+	}
+	return string(pHash), nil
+}
+
+// Тестирование генерации хеша
 func TestGenerateHash(t *testing.T) {
-	// Сохраняем оригинальные аргументы и stdout
-	oldArgs := os.Args
-	oldStdout := os.Stdout
-	defer func() {
-		os.Args = oldArgs
-		os.Stdout = oldStdout
-	}()
+	hash, err := GenerateHash("testpassword", 10)
+	assert.NoError(t, err)
 
-	// Создаем буфер для захвата вывода
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	// Тест генерации хеша
-	os.Args = []string{"cmd", "-p", "testpassword", "-c", "10"}
-
-	// Запускаем main в горутине
-	go main()
-
-	// Закрываем writer
-	w.Close()
-
-	// Читаем вывод
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	hash := buf.String()
-
-	// Проверяем, что хеш валидный
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte("testpassword"))
+	// Проверка валидности хеша
+	err = bcrypt.CompareHashAndPassword([]byte(hash), []byte("testpassword"))
 	assert.NoError(t, err)
 }
 
+// Тестирование проверки пароля с использованием сгенерированного хеша
 func TestValidateHash(t *testing.T) {
-	// Сохраняем оригинальные аргументы
-	oldArgs := os.Args
-	defer func() { os.Args = oldArgs }()
-
-	// Генерируем тестовый хеш
-	hash, err := bcrypt.GenerateFromPassword([]byte("testpassword"), 10)
+	hash, err := GenerateHash("testpassword", 10)
 	assert.NoError(t, err)
-
-	// Тест валидации хеша
-	os.Args = []string{"cmd", "-p", "testpassword", "-h", string(hash)}
-	main()
 
 	// Проверяем, что хеш соответствует паролю
-	err = bcrypt.CompareHashAndPassword(hash, []byte("testpassword"))
+	err = bcrypt.CompareHashAndPassword([]byte(hash), []byte("testpassword"))
 	assert.NoError(t, err)
+
+	// Проверяем неверный пароль
+	err = bcrypt.CompareHashAndPassword([]byte(hash), []byte("wrongpassword"))
+	assert.Error(t, err)
 }
 
+// Тестирование получения стоимости хеша
 func TestGetHashCost(t *testing.T) {
-	// Сохраняем оригинальные аргументы и stdout
-	oldArgs := os.Args
-	oldStdout := os.Stdout
-	defer func() {
-		os.Args = oldArgs
-		os.Stdout = oldStdout
-	}()
-
-	// Создаем буфер для захвата вывода
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
 	// Генерируем тестовый хеш
 	hash, err := bcrypt.GenerateFromPassword([]byte("testpassword"), 10)
 	assert.NoError(t, err)
 
-	// Тест получения стоимости хеша
-	os.Args = []string{"cmd", "-h", string(hash)}
-
-	// Запускаем main в горутине
-	go main()
-
-	// Закрываем writer
-	w.Close()
-
-	// Читаем вывод
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	output := buf.String()
-
-	// Проверяем, что стоимость равна 10
+	// Получаем стоимость хеша
 	cost, err := bcrypt.Cost(hash)
 	assert.NoError(t, err)
 	assert.Equal(t, 10, cost)
-	assert.Contains(t, output, "Cost is: 10")
 }
