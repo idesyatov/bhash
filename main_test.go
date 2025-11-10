@@ -7,6 +7,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	validPassword   = "testpassword"
+	invalidPassword = "wrongpassword"
+)
+
 // Генерация хеша пароля
 func GenerateHash(password string, cost int) (string, error) {
 	pHash, err := bcrypt.GenerateFromPassword([]byte(password), cost)
@@ -16,38 +21,46 @@ func GenerateHash(password string, cost int) (string, error) {
 	return string(pHash), nil
 }
 
-// Тестирование генерации хеша
-func TestGenerateHash(t *testing.T) {
-	hash, err := GenerateHash("testpassword", 10)
-	assert.NoError(t, err)
-
-	// Проверка валидности хеша
-	err = bcrypt.CompareHashAndPassword([]byte(hash), []byte("testpassword"))
-	assert.NoError(t, err)
+// Общая функция проверки хешей
+func checkHash(t *testing.T, hash string, password string, expectError bool) {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	if expectError {
+		assert.Error(t, err)
+	} else {
+		assert.NoError(t, err)
+	}
 }
 
-// Тестирование проверки пароля с использованием сгенерированного хеша
-func TestValidateHash(t *testing.T) {
-	hash, err := GenerateHash("testpassword", 10)
+// Тестирование генерации и проверки хеша
+func TestGenerateAndValidateHash(t *testing.T) {
+	hash, err := GenerateHash(validPassword, 10)
 	assert.NoError(t, err)
 
-	// Проверяем, что хеш соответствует паролю
-	err = bcrypt.CompareHashAndPassword([]byte(hash), []byte("testpassword"))
-	assert.NoError(t, err)
+	// Проверяем валидный и невалидный пароль
+	checkHash(t, hash, validPassword, false)
+	checkHash(t, hash, invalidPassword, true)
+}
 
-	// Проверяем неверный пароль
-	err = bcrypt.CompareHashAndPassword([]byte(hash), []byte("wrongpassword"))
-	assert.Error(t, err)
+// Тестирование генерации хеша с различной стоимостью
+func TestGenerateHashWithDifferentCosts(t *testing.T) {
+	costs := []int{4, 6, 8, 10, 12}
+	for _, cost := range costs {
+		hash, err := GenerateHash(validPassword, cost)
+		assert.NoError(t, err)
+
+		costValue, err := bcrypt.Cost([]byte(hash))
+		assert.NoError(t, err)
+		assert.Equal(t, cost, costValue)
+	}
 }
 
 // Тестирование получения стоимости хеша
 func TestGetHashCost(t *testing.T) {
-	// Генерируем тестовый хеш
-	hash, err := bcrypt.GenerateFromPassword([]byte("testpassword"), 10)
+	hash, err := bcrypt.GenerateFromPassword([]byte(validPassword), 10)
 	assert.NoError(t, err)
 
 	// Получаем стоимость хеша
-	cost, err := bcrypt.Cost(hash)
+	cost, err := bcrypt.Cost([]byte(hash))
 	assert.NoError(t, err)
 	assert.Equal(t, 10, cost)
 }
